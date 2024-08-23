@@ -1,30 +1,53 @@
-version: '3'
+version: '3.7'
 
 services:
-  elastic:
-    image: docker.elastic.co/elasticsearch/elasticsearch:6.6.0
-    ports:
-      - "9200:9200"
-      - "9300:9300"
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.2
+    container_name: elasticsearch
     environment:
       - discovery.type=single-node
-  kibana:
-    image: docker.elastic.co/kibana/kibana:6.6.0
-    ports:
-      - "5601:5601"
-    environment:
-      SERVER_NAME: kibana
-      SERVER_HOST: kibana
-      ELASTICSEARCH_HOSTS: http://host.docker.internal:9200/
-    depends_on:
-      - elastic
-  logstash:
-    image: docker.elastic.co/logstash/logstash:6.6.0
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
     volumes:
-      - ./logstash-conf:/usr/share/logstash/pipeline/
+      - esdata:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - elk
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.10.2
+    container_name: logstash
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf
     ports:
       - "5044:5044"
-    environment:
-      ELASTIC_HOST: host.docker.internal:9200
+      - "9600:9600"
     depends_on:
-      - elastic
+      - elasticsearch
+    networks:
+      - elk
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.10.2
+    container_name: kibana
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - elk
+
+volumes:
+  esdata:
+    driver: local
+
+networks:
+  elk:
+    driver: bridge
